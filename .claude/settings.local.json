@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -n \"^//\" /c/Users/me/Documents/Code/uow-datalens/src -r)"
+    ]
+  }
+}
