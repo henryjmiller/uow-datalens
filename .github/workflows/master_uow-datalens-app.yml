@@ -32,6 +32,7 @@ jobs:
           include-hidden-files: true
           path: |
             .next/
+            public/
             package.json
             package-lock.json
             next.config.mjs
