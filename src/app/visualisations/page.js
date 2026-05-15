@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as ChartJS from 'chart.js'
 import { Bar, Line, Pie } from 'react-chartjs-2'
-import { detectColumnTypes } from '@/lib/analysis'
+import { detectColumnTypes, parseDateMs } from '@/lib/analysis'
 
 ChartJS.Chart.register(...ChartJS.registerables)
 
@@ -59,6 +59,7 @@ function sortItems(items, direction) {
 	return sorted
 }
 
+
 function sortRows(rows, labelColumn, sortColumn, direction) {
 	const sorted = [...rows]
 
@@ -76,6 +77,12 @@ function sortRows(rows, labelColumn, sortColumn, direction) {
 
 		if (typeof valueA === 'number' && typeof valueB === 'number') {
 			return valueA - valueB
+		}
+
+		const dateA = parseDateMs(valueA)
+		const dateB = parseDateMs(valueB)
+		if (dateA !== null && dateB !== null) {
+			return dateA - dateB
 		}
 
 		return String(valueA ?? '').localeCompare(String(valueB ?? ''))
@@ -99,8 +106,8 @@ function buildAggregatedChartData(items, chartType, colourMode) {
 				{
 					label: 'Values',
 					data: values,
-					backgroundColor: items.map((item, index) => getColour(index, 0.75)),
-					borderColor: items.map((item, index) => getBorderColour(index)),
+					backgroundColor: items.map((_, index) => getColour(index, 0.75)),
+					borderColor: items.map((_, index) => getBorderColour(index)),
 					borderWidth: 1
 				}
 			]
@@ -114,8 +121,8 @@ function buildAggregatedChartData(items, chartType, colourMode) {
 				{
 					label: 'Values',
 					data: values,
-					backgroundColor: items.map((item, index) => getColour(index, 0.65)),
-					borderColor: items.map((item, index) => getBorderColour(index)),
+					backgroundColor: items.map((_, index) => getColour(index, 0.65)),
+					borderColor: items.map((_, index) => getBorderColour(index)),
 					borderWidth: 2
 				}
 			]
@@ -151,8 +158,8 @@ function buildRawChartData(rows, chartType, labelColumn, selectedValueColumns, c
 						const value = row[valueColumn]
 						return typeof value === 'number' ? value : 0
 					}),
-					backgroundColor: rows.map((row, index) => getColour(index, 0.75)),
-					borderColor: rows.map((row, index) => getBorderColour(index)),
+					backgroundColor: rows.map((_, index) => getColour(index, 0.75)),
+					borderColor: rows.map((_, index) => getBorderColour(index)),
 					borderWidth: 1
 				}
 			]
@@ -171,8 +178,8 @@ function buildRawChartData(rows, chartType, labelColumn, selectedValueColumns, c
 						const value = row[valueColumn]
 						return typeof value === 'number' ? value : 0
 					}),
-					backgroundColor: rows.map((row, index) => getColour(index, 0.65)),
-					borderColor: rows.map((row, index) => getBorderColour(index)),
+					backgroundColor: rows.map((_, index) => getColour(index, 0.65)),
+					borderColor: rows.map((_, index) => getBorderColour(index)),
 					borderWidth: 2
 				}
 			]
@@ -196,7 +203,49 @@ function buildRawChartData(rows, chartType, labelColumn, selectedValueColumns, c
 	}
 }
 
-function buildChartOptions(chartType, yAxisLabel) {
+function buildSeriesChartData(rows, labelColumn, valueColumn, seriesColumn) {
+	const seriesValues = [...new Set(rows.map((row) => row[seriesColumn]))]
+		.filter((v) => v !== null && v !== undefined && v !== '')
+		.sort((a, b) => String(a).localeCompare(String(b)))
+
+	const labelValues = [...new Set(rows.map((row) => row[labelColumn]))]
+		.sort((a, b) => {
+			if (typeof a === 'number' && typeof b === 'number') return a - b
+			const dateA = parseDateMs(a)
+			const dateB = parseDateMs(b)
+			if (dateA !== null && dateB !== null) return dateA - dateB
+			return String(a).localeCompare(String(b))
+		})
+
+	const datasets = seriesValues.map((seriesVal, index) => {
+		const valueMap = new Map()
+
+		for (let i = 0; i < rows.length; i++) {
+			if (rows[i][seriesColumn] === seriesVal) {
+				valueMap.set(rows[i][labelColumn], rows[i][valueColumn])
+			}
+		}
+
+		return {
+			label: String(seriesVal),
+			data: labelValues.map((labelVal) => {
+				const val = valueMap.get(labelVal)
+				return typeof val === 'number' ? val : null
+			}),
+			backgroundColor: getColour(index, 0.65),
+			borderColor: getBorderColour(index),
+			borderWidth: 2,
+			spanGaps: false
+		}
+	})
+
+	return {
+		labels: labelValues.map(String),
+		datasets: datasets
+	}
+}
+
+function buildChartOptions(chartType, yAxisLabel, yAxisMin, yAxisMax) {
 	if (chartType === 'pie') {
 		return {
 			responsive: true,
@@ -208,6 +257,23 @@ function buildChartOptions(chartType, yAxisLabel) {
 		}
 	}
 
+	const yScale = {
+		title: {
+			display: Boolean(yAxisLabel),
+			text: yAxisLabel
+		}
+	}
+
+	if (yAxisMin !== '') {
+		yScale.min = Number(yAxisMin)
+	} else {
+		yScale.beginAtZero = true
+	}
+
+	if (yAxisMax !== '') {
+		yScale.max = Number(yAxisMax)
+	}
+
 	return {
 		responsive: true,
 		plugins: {
@@ -216,15 +282,20 @@ function buildChartOptions(chartType, yAxisLabel) {
 			}
 		},
 		scales: {
-			y: {
-				beginAtZero: true,
-				title: {
-					display: Boolean(yAxisLabel),
-					text: yAxisLabel
-				}
-			}
+			y: yScale
 		}
 	}
+}
+
+function Tip({ text }) {
+	return (
+		<span
+			title={text}
+			style={{ marginLeft: '5px', cursor: 'help', color: '#888', fontSize: '0.8em' }}
+		>
+			(?)
+		</span>
+	)
 }
 
 export default function VisualisationsPage() {
@@ -233,11 +304,15 @@ export default function VisualisationsPage() {
 	const [rows, setRows] = useState([])
 	const [columns, setColumns] = useState([])
 	const [datasetName, setDatasetName] = useState('')
+	const [loading, setLoading] = useState(true)
 
 	const [chartType, setChartType] = useState('bar')
 	const [labelColumn, setLabelColumn] = useState('')
 	const [selectedValueColumns, setSelectedValueColumns] = useState([])
+	const [seriesColumn, setSeriesColumn] = useState('')
 	const [yAxisLabel, setYAxisLabel] = useState('')
+	const [yAxisMin, setYAxisMin] = useState('')
+	const [yAxisMax, setYAxisMax] = useState('')
 	const [sortColumn, setSortColumn] = useState('')
 	const [sortDirection, setSortDirection] = useState('asc')
 	const [aggregateValues, setAggregateValues] = useState(false)
@@ -245,17 +320,23 @@ export default function VisualisationsPage() {
 	const [savedMessage, setSavedMessage] = useState('')
 
 	useEffect(() => {
-		const savedRows = localStorage.getItem('uploadedDataset')
-		const savedColumns = localStorage.getItem('uploadedDatasetColumns')
-		const savedName = localStorage.getItem('uploadedDatasetName')
+		async function load() {
+			const activeId = localStorage.getItem('activeDatasetId')
+			if (!activeId) { setLoading(false); return }
 
-		if (!savedRows || !savedColumns) {
-			return
+			try {
+				const res = await fetch(`/api/datasets/${activeId}`)
+				if (!res.ok) return
+				const dataset = await res.json()
+				setRows(dataset.rows)
+				setColumns(dataset.columns)
+				setDatasetName(dataset.name || 'Unnamed dataset')
+			} catch {} finally {
+				setLoading(false)
+			}
 		}
 
-		setRows(JSON.parse(savedRows))
-		setColumns(JSON.parse(savedColumns))
-		setDatasetName(savedName || 'Unnamed dataset')
+		load()
 	}, [])
 
 	const columnTypes = useMemo(() => {
@@ -275,10 +356,26 @@ export default function VisualisationsPage() {
 	}, [columns, columnTypes])
 
 	useEffect(() => {
-		if (!labelColumn && textColumns.length > 0) {
-			setLabelColumn(textColumns[0])
+		if (!labelColumn && columns.length > 0) {
+			if (textColumns.length === 0) {
+				setLabelColumn(columns[0])
+				return
+			}
+
+			let bestColumn = textColumns[0]
+			let bestCount = 0
+
+			for (const col of textColumns) {
+				const uniqueCount = new Set(rows.map((r) => r[col])).size
+				if (uniqueCount > bestCount) {
+					bestCount = uniqueCount
+					bestColumn = col
+				}
+			}
+
+			setLabelColumn(bestColumn)
 		}
-	}, [labelColumn, textColumns])
+	}, [labelColumn, columns, textColumns, rows])
 
 	function handleValueColumnToggle(column) {
 		setSelectedValueColumns((current) => {
@@ -344,6 +441,10 @@ export default function VisualisationsPage() {
 			return null
 		}
 
+		if (seriesColumn && selectedValueColumns.length === 1) {
+			return buildSeriesChartData(rows, labelColumn, selectedValueColumns[0], seriesColumn)
+		}
+
 		const sortedRows = sortRows(
 			rows,
 			labelColumn,
@@ -362,6 +463,7 @@ export default function VisualisationsPage() {
 		rows,
 		labelColumn,
 		selectedValueColumns,
+		seriesColumn,
 		chartType,
 		sortColumn,
 		sortDirection,
@@ -370,8 +472,8 @@ export default function VisualisationsPage() {
 	])
 
 	const chartOptions = useMemo(() => {
-		return buildChartOptions(chartType, yAxisLabel)
-	}, [chartType, yAxisLabel])
+		return buildChartOptions(chartType, yAxisLabel, yAxisMin, yAxisMax)
+	}, [chartType, yAxisLabel, yAxisMin, yAxisMax])
 
 	function saveChartAsImage() {
 		const chartInstance = chartRef.current
@@ -394,7 +496,10 @@ export default function VisualisationsPage() {
 			chartType: chartType,
 			labelColumn: labelColumn,
 			selectedValueColumns: selectedValueColumns,
+			seriesColumn: seriesColumn,
 			yAxisLabel: yAxisLabel,
+			yAxisMin: yAxisMin,
+			yAxisMax: yAxisMax,
 			sortColumn: sortColumn,
 			sortDirection: sortDirection,
 			aggregateValues: aggregateValues,
@@ -418,7 +523,10 @@ export default function VisualisationsPage() {
 		setChartType(parsedConfig.chartType || 'bar')
 		setLabelColumn(parsedConfig.labelColumn || '')
 		setSelectedValueColumns(parsedConfig.selectedValueColumns || [])
+		setSeriesColumn(parsedConfig.seriesColumn || '')
 		setYAxisLabel(parsedConfig.yAxisLabel || '')
+		setYAxisMin(parsedConfig.yAxisMin ?? '')
+		setYAxisMax(parsedConfig.yAxisMax ?? '')
 		setSortColumn(parsedConfig.sortColumn || '')
 		setSortDirection(parsedConfig.sortDirection || 'asc')
 		setAggregateValues(parsedConfig.aggregateValues || false)
@@ -452,6 +560,15 @@ export default function VisualisationsPage() {
 		return null
 	}
 
+	if (loading) {
+		return (
+			<main style={{ padding: '24px' }}>
+				<h1>Visualisations</h1>
+				<p>Loading...</p>
+			</main>
+		)
+	}
+
 	if (rows.length === 0) {
 		return (
 			<main style={{ padding: '24px' }}>
@@ -470,7 +587,7 @@ export default function VisualisationsPage() {
 				<h2>Chart Setup</h2>
 
 				<div style={{ marginBottom: '16px' }}>
-					<label htmlFor="chartType"><strong>Chart type: </strong></label>
+					<label htmlFor="chartType"><strong>Chart type<Tip text="Bar: compare values side by side. Line: show change over time or a continuous trend. Pie: show proportions of a whole (one value column only)." />: </strong></label>
 					<select
 						id="chartType"
 						value={chartType}
@@ -483,14 +600,14 @@ export default function VisualisationsPage() {
 				</div>
 
 				<div style={{ marginBottom: '16px' }}>
-					<label htmlFor="labelColumn"><strong>Label column: </strong></label>
+					<label htmlFor="labelColumn"><strong>Label column<Tip text="The column used as the x-axis on bar and line charts, or as slice names on a pie chart. Works best with a column that has a unique value per row, such as a date or name." />: </strong></label>
 					<select
 						id="labelColumn"
 						value={labelColumn}
 						onChange={(e) => setLabelColumn(e.target.value)}
 					>
 						<option value="">Select a label column</option>
-						{textColumns.map((column) => (
+						{columns.map((column) => (
 							<option key={column} value={column}>
 								{column}
 							</option>
@@ -499,7 +616,7 @@ export default function VisualisationsPage() {
 				</div>
 
 				<div style={{ marginBottom: '16px' }}>
-					<p><strong>Value columns:</strong></p>
+					<p><strong>Value columns<Tip text="The numeric columns to plot as bars, lines, or pie slices. Tick one or more columns. For pie charts only one column can be selected." />:</strong></p>
 
 					{numericColumns.length === 0 && <p>No numeric columns detected.</p>}
 
@@ -517,7 +634,7 @@ export default function VisualisationsPage() {
 
 				{selectedValueColumns.length > 0 && (
 					<div style={{ marginBottom: '16px' }}>
-						<p><strong>Selected value column order:</strong></p>
+						<p><strong>Selected value column order<Tip text="Change the order that value columns appear in the chart legend and as grouped bars. Use the Up and Down buttons to reorder." />:</strong></p>
 
 						{selectedValueColumns.map((column, index) => (
 							<div key={column} style={{ marginBottom: '8px' }}>
@@ -542,7 +659,23 @@ export default function VisualisationsPage() {
 				)}
 
 				<div style={{ marginBottom: '16px' }}>
-					<label htmlFor="sortColumn"><strong>Sort by: </strong></label>
+					<label htmlFor="seriesColumn"><strong>Series column<Tip text="Split the data into separate lines or bar groups based on a column's unique values — for example, one line per country. Only works when a single value column is selected." />: </strong></label>
+					<select
+						id="seriesColumn"
+						value={seriesColumn}
+						onChange={(e) => setSeriesColumn(e.target.value)}
+					>
+						<option value="">None</option>
+						{columns.map((column) => (
+							<option key={column} value={column}>
+								{column}
+							</option>
+						))}
+					</select>
+				</div>
+
+				<div style={{ marginBottom: '16px' }}>
+					<label htmlFor="sortColumn"><strong>Sort by<Tip text="Choose which column determines the order of bars or points on the chart. 'Label' sorts by the x-axis values (alphabetically or by date). Choose a value column to sort by its numbers instead." />: </strong></label>
 					<select
 						id="sortColumn"
 						value={sortColumn}
@@ -561,6 +694,7 @@ export default function VisualisationsPage() {
 						value={sortDirection}
 						onChange={(e) => setSortDirection(e.target.value)}
 						style={{ marginLeft: '8px' }}
+						title="Ascending: lowest to highest, A to Z, or oldest to newest. Descending reverses the order."
 					>
 						<option value="asc">Ascending</option>
 						<option value="desc">Descending</option>
@@ -574,12 +708,12 @@ export default function VisualisationsPage() {
 							checked={aggregateValues}
 							onChange={(e) => setAggregateValues(e.target.checked)}
 						/>
-						{' '}Aggregate values
+						{' '}Aggregate values<Tip text="When ticked, each selected value column is summed into a single total bar or slice, rather than showing one bar per row. Useful for totalling up categories." />
 					</label>
 				</div>
 
 				<div style={{ marginBottom: '16px' }}>
-					<label htmlFor="colourMode"><strong>Colour assignment: </strong></label>
+					<label htmlFor="colourMode"><strong>Colour assignment<Tip text="By column: each value column gets its own colour — all bars for the same column share a colour. By row: each individual bar or data point gets its own colour, useful when bars represent different categories." />: </strong></label>
 					<select
 						id="colourMode"
 						value={colourMode}
@@ -591,7 +725,7 @@ export default function VisualisationsPage() {
 				</div>
 
 				<div style={{ marginBottom: '16px' }}>
-					<label htmlFor="yAxisLabel"><strong>Y-axis label: </strong></label>
+					<label htmlFor="yAxisLabel"><strong>Y-axis label<Tip text="Optional text displayed alongside the y-axis to describe the units or meaning of the values, for example 'Population' or 'pH level'. Leave blank to show no label." />: </strong></label>
 					<input
 						id="yAxisLabel"
 						type="text"
@@ -603,7 +737,33 @@ export default function VisualisationsPage() {
 				</div>
 
 				<div style={{ marginBottom: '16px' }}>
-					<button type="button" onClick={saveChartConfiguration}>
+					<label htmlFor="yAxisMin"><strong>Y-axis min<Tip text="Set the lowest value shown on the y-axis. Leave blank to let the chart scale automatically. Setting a minimum is useful when values are close together and you want to see fine differences." />: </strong></label>
+					<input
+						id="yAxisMin"
+						type="number"
+						value={yAxisMin}
+						onChange={(e) => setYAxisMin(e.target.value)}
+						placeholder="Automatic"
+						style={{ marginLeft: '8px', width: '120px' }}
+					/>
+
+					<label htmlFor="yAxisMax" style={{ marginLeft: '16px' }}><strong>Y-axis max<Tip text="Set the highest value shown on the y-axis. Leave blank to let the chart scale automatically. Useful for fixing the scale when comparing multiple charts." />: </strong></label>
+					<input
+						id="yAxisMax"
+						type="number"
+						value={yAxisMax}
+						onChange={(e) => setYAxisMax(e.target.value)}
+						placeholder="Automatic"
+						style={{ marginLeft: '8px', width: '120px' }}
+					/>
+				</div>
+
+				<div style={{ marginBottom: '16px' }}>
+					<button
+						type="button"
+						onClick={saveChartConfiguration}
+						title="Saves your current chart settings (type, columns, sort order, axis options) to this browser so you can reload them later."
+					>
 						Save Chart Settings
 					</button>
 
@@ -611,6 +771,7 @@ export default function VisualisationsPage() {
 						type="button"
 						onClick={loadChartConfiguration}
 						style={{ marginLeft: '8px' }}
+						title="Restores the chart settings you last saved. This does not affect the data filter."
 					>
 						Load Saved Settings
 					</button>
@@ -619,6 +780,7 @@ export default function VisualisationsPage() {
 						type="button"
 						onClick={saveChartAsImage}
 						style={{ marginLeft: '8px' }}
+						title="Downloads the current chart as a PNG image file."
 					>
 						Save Chart Image
 					</button>

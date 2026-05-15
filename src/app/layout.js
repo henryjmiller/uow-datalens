@@ -18,7 +18,7 @@ export default function RootLayout({ children }) {
             {" "}
             <Link href="/analysis">Analysis</Link>
             {" "}
-            <Link href="/results">Results</Link>
+            <Link href="/predictive-modelling">Predictive Modelling</Link>
             {" "}
             <Link href="/visualisations">Visualisations</Link>
           </nav>

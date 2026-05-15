@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import {
 	detectColumnTypes,
 	getDatasetSummary,
@@ -16,42 +17,57 @@ export default function AnalysisPage() {
 	const [columnTypes, setColumnTypes] = useState({})
 	const [numericSummaries, setNumericSummaries] = useState({})
 	const [textSummaries, setTextSummaries] = useState({})
+	const [loading, setLoading] = useState(true)
 
 	useEffect(() => {
-		const savedRows = localStorage.getItem('uploadedDataset')
-		const savedColumns = localStorage.getItem('uploadedDatasetColumns')
-		const savedName = localStorage.getItem('uploadedDatasetName')
+		async function load() {
+			const activeId = localStorage.getItem('activeDatasetId')
+			if (!activeId) {
+				setLoading(false)
+				return
+			}
 
-		if (!savedRows || !savedColumns) {
-			return
-		}
+			try {
+				const res = await fetch(`/api/datasets/${activeId}`)
+				if (!res.ok) return
 
-		const parsedRows = JSON.parse(savedRows)
-		const parsedColumns = JSON.parse(savedColumns)
+				const dataset = await res.json()
+				const detectedTypes = detectColumnTypes(dataset.rows, dataset.columns)
 
-		setRows(parsedRows)
-		setColumns(parsedColumns)
-		setDatasetName(savedName || 'Unnamed dataset')
+				const numericResults = {}
+				const textResults = {}
 
-		const datasetSummary = getDatasetSummary(parsedRows, parsedColumns)
-		const detectedTypes = detectColumnTypes(parsedRows, parsedColumns)
+				for (const column of dataset.columns) {
+					if (detectedTypes[column] === 'number') {
+						numericResults[column] = getNumericColumnSummary(dataset.rows, column)
+					} else if (detectedTypes[column] === 'text') {
+						textResults[column] = getTextColumnSummary(dataset.rows, column)
+					}
+				}
 
-		const numericResults = {}
-		const textResults = {}
-
-		for (const column of parsedColumns) {
-			if (detectedTypes[column] === 'number') {
-				numericResults[column] = getNumericColumnSummary(parsedRows, column)
-			} else if (detectedTypes[column] === 'text') {
-				textResults[column] = getTextColumnSummary(parsedRows, column)
+				setRows(dataset.rows)
+				setColumns(dataset.columns)
+				setDatasetName(dataset.name || 'Unnamed dataset')
+				setSummary(getDatasetSummary(dataset.rows, dataset.columns))
+				setColumnTypes(detectedTypes)
+				setNumericSummaries(numericResults)
+				setTextSummaries(textResults)
+			} catch {} finally {
+				setLoading(false)
 			}
 		}
 
-		setSummary(datasetSummary)
-		setColumnTypes(detectedTypes)
-		setNumericSummaries(numericResults)
-		setTextSummaries(textResults)
+		load()
 	}, [])
+
+	if (loading) {
+		return (
+			<main style={{ padding: '24px' }}>
+				<h1>Analysis</h1>
+				<p>Loading...</p>
+			</main>
+		)
+	}
 
 	if (rows.length === 0) {
 		return (
@@ -123,6 +139,15 @@ export default function AnalysisPage() {
 						</ul>
 					</div>
 				))}
+			</div>
+
+			<div style={{ marginTop: '24px' }}>
+				<h2>Further Analysis</h2>
+				<ul>
+					<li><Link href="/analysis/correlation">Correlation Analysis</Link></li>
+					<li><Link href="/analysis/trend">Trend / Change Analysis</Link></li>
+					<li><Link href="/analysis/outliers">Outlier Detection</Link></li>
+				</ul>
 			</div>
 		</main>
 	)
