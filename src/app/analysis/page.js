@@ -62,7 +62,7 @@ export default function AnalysisPage() {
 
 	if (loading) {
 		return (
-			<main style={{ padding: '24px' }}>
+			<main >
 				<h1>Analysis</h1>
 				<p>Loading...</p>
 			</main>
@@ -71,7 +71,7 @@ export default function AnalysisPage() {
 
 	if (rows.length === 0) {
 		return (
-			<main style={{ padding: '24px' }}>
+			<main >
 				<h1>Analysis</h1>
 				<p>No dataset found. Please upload a CSV on the datasets page first.</p>
 			</main>
@@ -79,7 +79,7 @@ export default function AnalysisPage() {
 	}
 
 	return (
-		<main style={{ padding: '24px' }}>
+		<main >
 			<h1>Analysis</h1>
 			<p><strong>Dataset:</strong> {datasetName}</p>
 

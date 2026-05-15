@@ -246,7 +246,7 @@ export default function CleanDataPage() {
 
 	if (loading) {
 		return (
-			<main style={{ padding: '24px' }}>
+			<main >
 				<h1>Clean Data</h1>
 				<p>Loading...</p>
 			</main>
@@ -255,10 +255,10 @@ export default function CleanDataPage() {
 
 	if (!dataset) {
 		return (
-			<main style={{ padding: '24px' }}>
+			<main >
 				<h1>Clean Data</h1>
 				<p>Dataset not found. It may have been deleted or the page was refreshed.</p>
-				<p><Link href="/datasets">← Back to Datasets</Link></p>
+				<p><Link href="/datasets">Back to Datasets</Link></p>
 			</main>
 		)
 	}
@@ -274,10 +274,10 @@ export default function CleanDataPage() {
 	)
 
 	return (
-		<main style={{ padding: '24px' }}>
+		<main >
 			<h1>Clean Data</h1>
-			<p><strong>Dataset:</strong> {dataset.name} — {dataset.rowCount} rows</p>
-			<p><Link href="/datasets">← Back to Datasets</Link></p>
+			<p><strong>Dataset:</strong> {dataset.name} ({dataset.rowCount} rows)</p>
+			<p><Link href="/datasets">Back to Datasets</Link></p>
 
 			{message && <p style={{ marginTop: '12px' }}>{message}</p>}
 			{saving && <p>Saving changes...</p>}
@@ -366,7 +366,7 @@ export default function CleanDataPage() {
 							))}
 						</div>
 
-						<p style={{ marginTop: '6px' }}>{selectedFilterValues.length} selected — {matchingRowCount} rows matched</p>
+						<p style={{ marginTop: '6px' }}>{selectedFilterValues.length} selected, {matchingRowCount} rows matched</p>
 					</div>
 				)}
 
@@ -432,7 +432,7 @@ export default function CleanDataPage() {
 								onChange={() => toggleMissingColumn(col)}
 								disabled={missingCounts[col] === 0}
 							/>
-							{' '}<strong>{col}</strong> — {missingCounts[col] === 0 ? 'no missing values' : `${missingCounts[col]} missing`}
+							{' '}<strong>{col}</strong>: {missingCounts[col] === 0 ? 'no missing values' : `${missingCounts[col]} missing`}
 						</label>
 					</div>
 				))}
@@ -465,7 +465,7 @@ export default function CleanDataPage() {
 									onChange={() => toggleOutlierColumn(col)}
 									disabled={result.outliers.length === 0}
 								/>
-								{' '}<strong>{col}</strong> — {result.outliers.length === 0 ? 'no outliers detected' : `${result.outliers.length} outlier${result.outliers.length !== 1 ? 's' : ''}`} (bounds: {result.lowerBound.toFixed(2)} to {result.upperBound.toFixed(2)})
+								{' '}<strong>{col}</strong>: {result.outliers.length === 0 ? 'no outliers detected' : `${result.outliers.length} outlier${result.outliers.length !== 1 ? 's' : ''}`} (bounds: {result.lowerBound.toFixed(2)} to {result.upperBound.toFixed(2)})
 							</label>
 						</div>
 					)

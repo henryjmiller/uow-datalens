@@ -43,12 +43,12 @@ export default function TrendPage() {
 	}, [])
 
 	if (loading) {
-		return <main style={{ padding: '24px' }}><h1>Trend / Change Analysis</h1><p>Loading...</p></main>
+		return <main ><h1>Trend / Change Analysis</h1><p>Loading...</p></main>
 	}
 
 	if (notFound) {
 		return (
-			<main style={{ padding: '24px' }}>
+			<main >
 				<h1>Trend / Change Analysis</h1>
 				<p>No dataset found. Please upload a CSV on the datasets page first.</p>
 			</main>
@@ -56,10 +56,10 @@ export default function TrendPage() {
 	}
 
 	return (
-		<main style={{ padding: '24px' }}>
+		<main >
 			<h1>Trend / Change Analysis</h1>
 			<p><strong>Dataset:</strong> {datasetName}</p>
-			<p><Link href="/analysis">← Back to Analysis</Link></p>
+			<p><Link href="/analysis">Back to Analysis</Link></p>
 
 			<div style={{ marginTop: '24px' }}>
 				{results.length === 0 && <p>No trend analysis could be generated.</p>}

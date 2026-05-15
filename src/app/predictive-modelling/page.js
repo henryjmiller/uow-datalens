@@ -405,12 +405,12 @@ export default function PredictiveModellingPage() {
 	})
 
 	if (loading) {
-		return <main style={{ padding: '24px' }}><h1>Predictive Modelling</h1><p>Loading...</p></main>
+		return <main><h1>Predictive Modelling</h1><p>Loading...</p></main>
 	}
 
 	if (rows.length === 0) {
 		return (
-			<main style={{ padding: '24px' }}>
+			<main>
 				<h1>Predictive Modelling</h1>
 				<p>No dataset found. Please upload a CSV on the datasets page first.</p>
 			</main>
@@ -418,7 +418,7 @@ export default function PredictiveModellingPage() {
 	}
 
 	return (
-		<main style={{ padding: '24px' }}>
+		<main>
 			<h1>Predictive Modelling</h1>
 			<p><strong>Dataset:</strong> {datasetName}</p>
 
@@ -641,7 +641,7 @@ export default function PredictiveModellingPage() {
 					</div>
 
 					<div style={{ marginBottom: '16px' }}>
-						<label htmlFor="xColumn"><strong>X (independent)<Tip text="The input variable — the column whose values are used to predict the output. Changes in X drive the predicted changes in Y." />: </strong></label>
+						<label htmlFor="xColumn"><strong>X (independent)<Tip text="The input variable, the column whose values are used to predict the output. Changes in X drive the predicted changes in Y." />: </strong></label>
 						<select id="xColumn" value={xColumn} onChange={(e) => setXColumn(e.target.value)}>
 							<option value="">Select a column</option>
 							{numericColumns.map((col) => <option key={col} value={col}>{col}</option>)}
@@ -649,7 +649,7 @@ export default function PredictiveModellingPage() {
 					</div>
 
 					<div style={{ marginBottom: '16px' }}>
-						<label htmlFor="yColumn"><strong>Y (dependent)<Tip text="The output variable — the column whose value the regression is trying to predict. The model finds the straight line that best explains Y as a function of X." />: </strong></label>
+						<label htmlFor="yColumn"><strong>Y (dependent)<Tip text="The output variable, the column whose value the regression is trying to predict. The model finds the straight line that best explains Y as a function of X." />: </strong></label>
 						<select id="yColumn" value={yColumn} onChange={(e) => setYColumn(e.target.value)}>
 							<option value="">Select a column</option>
 							{numericColumns.filter((c) => c !== xColumn).map((col) => <option key={col} value={col}>{col}</option>)}

@@ -167,20 +167,35 @@ export default function DatasetsPage() {
 	}
 
 	return (
-		<main style={{ padding: '24px' }}>
+		<main>
 			<h1>Datasets</h1>
 			<p>Upload a CSV file to get started.</p>
 
 			<form onSubmit={handleSubmit}>
-				<input
-					type="file"
-					accept=".csv"
-					onChange={(e) => setFile(e.target.files[0] || null)}
-				/>
-
-				<div style={{ marginTop: '12px' }}>
-					<button type="submit">Upload CSV</button>
+				<div style={{ marginBottom: '12px' }}>
+					<label htmlFor="fileInput" style={{
+						display: 'inline-block',
+						padding: '7px 14px',
+						background: '#1a1a1a',
+						color: '#fff',
+						borderRadius: '4px',
+						fontSize: '14px',
+						cursor: 'pointer',
+						marginBottom: '6px'
+					}}>
+						Choose file
+					</label>
+					<input
+						id="fileInput"
+						type="file"
+						accept=".csv"
+						onChange={(e) => setFile(e.target.files[0] || null)}
+						style={{ display: 'none' }}
+					/>
+					{file && <span style={{ marginLeft: '10px', fontSize: '14px' }}>{file.name}</span>}
 				</div>
+
+				<button type="submit">Upload CSV</button>
 			</form>
 
 			{message && <p style={{ marginTop: '16px' }}>{message}</p>}
@@ -192,7 +207,7 @@ export default function DatasetsPage() {
 
 					{datasets.map((dataset) => (
 						<div key={dataset.id} style={{ marginBottom: '12px' }}>
-							<strong>{dataset.name}</strong> — {dataset.rowCount} rows
+							<strong>{dataset.name}</strong> ({dataset.rowCount} rows)
 
 							{dataset.id === activeDatasetId ? (
 								<span> (active)</span>

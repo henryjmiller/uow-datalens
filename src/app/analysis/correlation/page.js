@@ -31,12 +31,12 @@ export default function CorrelationPage() {
 	}, [])
 
 	if (loading) {
-		return <main style={{ padding: '24px' }}><h1>Correlation Analysis</h1><p>Loading...</p></main>
+		return <main ><h1>Correlation Analysis</h1><p>Loading...</p></main>
 	}
 
 	if (!datasetName) {
 		return (
-			<main style={{ padding: '24px' }}>
+			<main >
 				<h1>Correlation Analysis</h1>
 				<p>No dataset found. Please upload a CSV on the datasets page first.</p>
 			</main>
@@ -44,10 +44,10 @@ export default function CorrelationPage() {
 	}
 
 	return (
-		<main style={{ padding: '24px' }}>
+		<main >
 			<h1>Correlation Analysis</h1>
 			<p><strong>Dataset:</strong> {datasetName}</p>
-			<p><Link href="/analysis">← Back to Analysis</Link></p>
+			<p><Link href="/analysis">Back to Analysis</Link></p>
 
 			<div style={{ marginTop: '24px' }}>
 				{results.length === 0 && <p>Not enough numeric columns for correlation analysis.</p>}

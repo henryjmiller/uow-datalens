@@ -562,7 +562,7 @@ export default function VisualisationsPage() {
 
 	if (loading) {
 		return (
-			<main style={{ padding: '24px' }}>
+			<main>
 				<h1>Visualisations</h1>
 				<p>Loading...</p>
 			</main>
@@ -571,7 +571,7 @@ export default function VisualisationsPage() {
 
 	if (rows.length === 0) {
 		return (
-			<main style={{ padding: '24px' }}>
+			<main>
 				<h1>Visualisations</h1>
 				<p>No dataset found. Please upload a CSV on the datasets page first.</p>
 			</main>
@@ -579,7 +579,7 @@ export default function VisualisationsPage() {
 	}
 
 	return (
-		<main style={{ padding: '24px' }}>
+		<main>
 			<h1>Visualisations</h1>
 			<p><strong>Dataset:</strong> {datasetName}</p>
 
@@ -659,7 +659,7 @@ export default function VisualisationsPage() {
 				)}
 
 				<div style={{ marginBottom: '16px' }}>
-					<label htmlFor="seriesColumn"><strong>Series column<Tip text="Split the data into separate lines or bar groups based on a column's unique values — for example, one line per country. Only works when a single value column is selected." />: </strong></label>
+					<label htmlFor="seriesColumn"><strong>Series column<Tip text="Split the data into separate lines or bar groups based on a column's unique values. Only works when a single value column is selected." />: </strong></label>
 					<select
 						id="seriesColumn"
 						value={seriesColumn}
@@ -708,12 +708,12 @@ export default function VisualisationsPage() {
 							checked={aggregateValues}
 							onChange={(e) => setAggregateValues(e.target.checked)}
 						/>
-						{' '}Aggregate values<Tip text="When ticked, each selected value column is summed into a single total bar or slice, rather than showing one bar per row. Useful for totalling up categories." />
+						{' '}<strong>Aggregate values<Tip text="When ticked, each selected value column is summed into a single total bar or slice, rather than showing one bar per row. Useful for totalling up categories." /></strong>
 					</label>
 				</div>
 
 				<div style={{ marginBottom: '16px' }}>
-					<label htmlFor="colourMode"><strong>Colour assignment<Tip text="By column: each value column gets its own colour — all bars for the same column share a colour. By row: each individual bar or data point gets its own colour, useful when bars represent different categories." />: </strong></label>
+					<label htmlFor="colourMode"><strong>Colour assignment<Tip text="By column: each value column gets its own colour, so all bars for the same column share a colour. By row: each individual bar or data point gets its own colour, useful when bars represent different categories." />: </strong></label>
 					<select
 						id="colourMode"
 						value={colourMode}

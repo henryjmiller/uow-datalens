@@ -37,12 +37,12 @@ export default function OutliersPage() {
 	}, [])
 
 	if (loading) {
-		return <main style={{ padding: '24px' }}><h1>Outlier Detection</h1><p>Loading...</p></main>
+		return <main ><h1>Outlier Detection</h1><p>Loading...</p></main>
 	}
 
 	if (!loaded) {
 		return (
-			<main style={{ padding: '24px' }}>
+			<main >
 				<h1>Outlier Detection</h1>
 				<p>No dataset found. Please upload a CSV on the datasets page first.</p>
 			</main>
@@ -50,10 +50,10 @@ export default function OutliersPage() {
 	}
 
 	return (
-		<main style={{ padding: '24px' }}>
+		<main >
 			<h1>Outlier Detection</h1>
 			<p><strong>Dataset:</strong> {datasetName}</p>
-			<p><Link href="/analysis">← Back to Analysis</Link></p>
+			<p><Link href="/analysis">Back to Analysis</Link></p>
 
 			<div style={{ marginTop: '24px' }}>
 				{Object.keys(results).length === 0 && <p>No outlier analysis available.</p>}
