@@ -5,6 +5,15 @@ import * as ChartJS from 'chart.js'
 import { Bar, Line, Pie } from 'react-chartjs-2'
 import { detectColumnTypes, parseDateMs } from '@/lib/analysis'
 
+function isDateColumn(rows, column) {
+	const sample = rows
+		.map((r) => r[column])
+		.filter((v) => v !== null && v !== undefined && v !== '')
+		.slice(0, 20)
+	if (sample.length === 0) return false
+	return sample.filter((v) => parseDateMs(String(v)) !== null).length / sample.length >= 0.8
+}
+
 ChartJS.Chart.register(...ChartJS.registerables)
 
 function getColour(index, alpha) {
@@ -245,6 +254,26 @@ function buildSeriesChartData(rows, labelColumn, valueColumn, seriesColumn) {
 	}
 }
 
+function buildWideSeriesChartData(rows, entityColumn, yearColumns) {
+	return {
+		labels: yearColumns,
+		datasets: rows.map((row, index) => ({
+			label: String(row[entityColumn] ?? ''),
+			data: yearColumns.map((col) => {
+				const val = row[col]
+				return typeof val === 'number' ? val : null
+			}),
+			borderColor: getBorderColour(index),
+			backgroundColor: 'transparent',
+			borderWidth: 2,
+			pointRadius: 2,
+			fill: false,
+			spanGaps: false,
+			tension: 0.1
+		}))
+	}
+}
+
 function buildChartOptions(chartType, yAxisLabel, yAxisMin, yAxisMax) {
 	if (chartType === 'pie') {
 		return {
@@ -306,6 +335,14 @@ export default function VisualisationsPage() {
 	const [datasetName, setDatasetName] = useState('')
 	const [loading, setLoading] = useState(true)
 
+	const [filterColumn, setFilterColumn] = useState('')
+	const [selectedFilterValues, setSelectedFilterValues] = useState([])
+	const [filterSearch, setFilterSearch] = useState('')
+	const [filterMin, setFilterMin] = useState('')
+	const [filterMax, setFilterMax] = useState('')
+	const [filterDateFrom, setFilterDateFrom] = useState('')
+	const [filterDateTo, setFilterDateTo] = useState('')
+
 	const [chartType, setChartType] = useState('bar')
 	const [labelColumn, setLabelColumn] = useState('')
 	const [selectedValueColumns, setSelectedValueColumns] = useState([])
@@ -317,6 +354,8 @@ export default function VisualisationsPage() {
 	const [sortDirection, setSortDirection] = useState('asc')
 	const [aggregateValues, setAggregateValues] = useState(false)
 	const [colourMode, setColourMode] = useState('column')
+	const [wideSeriesMode, setWideSeriesMode] = useState(false)
+	const [wideEntityColumn, setWideEntityColumn] = useState('')
 	const [savedMessage, setSavedMessage] = useState('')
 
 	useEffect(() => {
@@ -354,6 +393,73 @@ export default function VisualisationsPage() {
 	const numericColumns = useMemo(() => {
 		return columns.filter((column) => columnTypes[column] === 'number')
 	}, [columns, columnTypes])
+
+	const yearColumns = useMemo(() =>
+		columns
+			.filter((col) => { const n = Number(col); return Number.isInteger(n) && n >= 1800 && n <= 2100 })
+			.sort((a, b) => Number(a) - Number(b)),
+		[columns]
+	)
+
+	const availableFilterValues = useMemo(() => {
+		if (!filterColumn || columnTypes[filterColumn] !== 'text') return []
+		const seen = new Set()
+		for (const row of rows) {
+			const val = row[filterColumn]
+			if (val !== null && val !== undefined && val !== '') seen.add(String(val))
+		}
+		return [...seen].sort()
+	}, [rows, filterColumn, columnTypes])
+
+	const filteredAvailableValues = useMemo(() => {
+		if (!filterSearch) return availableFilterValues
+		const lower = filterSearch.toLowerCase()
+		return availableFilterValues.filter((v) => v.toLowerCase().includes(lower))
+	}, [availableFilterValues, filterSearch])
+
+	const filteredRows = useMemo(() => {
+		if (!filterColumn) return rows
+
+		const isNumeric = columnTypes[filterColumn] === 'number'
+		const isDate = columnTypes[filterColumn] === 'text' && isDateColumn(rows, filterColumn)
+
+		if (isDate) {
+			const fromMs = filterDateFrom ? new Date(filterDateFrom).getTime() : -Infinity
+			const toMs = filterDateTo ? new Date(filterDateTo).setHours(23, 59, 59, 999) : Infinity
+			return rows.filter((row) => {
+				const ms = parseDateMs(String(row[filterColumn]))
+				return ms !== null && ms >= fromMs && ms <= toMs
+			})
+		}
+
+		if (isNumeric) {
+			const min = filterMin !== '' ? Number(filterMin) : -Infinity
+			const max = filterMax !== '' ? Number(filterMax) : Infinity
+			return rows.filter((row) => {
+				const val = row[filterColumn]
+				return typeof val === 'number' && val >= min && val <= max
+			})
+		}
+
+		if (selectedFilterValues.length === 0) return rows
+		return rows.filter((row) => selectedFilterValues.includes(String(row[filterColumn])))
+	}, [rows, filterColumn, columnTypes, selectedFilterValues, filterMin, filterMax, filterDateFrom, filterDateTo])
+
+	function toggleFilterValue(value) {
+		setSelectedFilterValues((current) =>
+			current.includes(value) ? current.filter((v) => v !== value) : [...current, value]
+		)
+	}
+
+	function clearFilter() {
+		setFilterColumn('')
+		setSelectedFilterValues([])
+		setFilterSearch('')
+		setFilterMin('')
+		setFilterMax('')
+		setFilterDateFrom('')
+		setFilterDateTo('')
+	}
 
 	useEffect(() => {
 		if (!labelColumn && columns.length > 0) {
@@ -423,15 +529,22 @@ export default function VisualisationsPage() {
 		if (chartType === 'pie' && selectedValueColumns.length > 1) {
 			setSelectedValueColumns([selectedValueColumns[0]])
 		}
+		if (chartType !== 'line') {
+			setWideSeriesMode(false)
+		}
 	}, [chartType, selectedValueColumns])
 
 	const chartData = useMemo(() => {
-		if (rows.length === 0 || selectedValueColumns.length === 0) {
+		if (wideSeriesMode && chartType === 'line' && yearColumns.length >= 2 && wideEntityColumn) {
+			return buildWideSeriesChartData(filteredRows, wideEntityColumn, yearColumns)
+		}
+
+		if (filteredRows.length === 0 || selectedValueColumns.length === 0) {
 			return null
 		}
 
 		if (aggregateValues) {
-			const summedItems = getColumnSums(rows, selectedValueColumns)
+			const summedItems = getColumnSums(filteredRows, selectedValueColumns)
 			const sortedItems = sortItems(summedItems, sortDirection)
 
 			return buildAggregatedChartData(sortedItems, chartType, colourMode)
@@ -442,11 +555,11 @@ export default function VisualisationsPage() {
 		}
 
 		if (seriesColumn && selectedValueColumns.length === 1) {
-			return buildSeriesChartData(rows, labelColumn, selectedValueColumns[0], seriesColumn)
+			return buildSeriesChartData(filteredRows, labelColumn, selectedValueColumns[0], seriesColumn)
 		}
 
 		const sortedRows = sortRows(
-			rows,
+			filteredRows,
 			labelColumn,
 			sortColumn || 'label',
 			sortDirection
@@ -460,7 +573,7 @@ export default function VisualisationsPage() {
 			colourMode
 		)
 	}, [
-		rows,
+		filteredRows,
 		labelColumn,
 		selectedValueColumns,
 		seriesColumn,
@@ -468,7 +581,10 @@ export default function VisualisationsPage() {
 		sortColumn,
 		sortDirection,
 		aggregateValues,
-		colourMode
+		colourMode,
+		wideSeriesMode,
+		wideEntityColumn,
+		yearColumns
 	])
 
 	const chartOptions = useMemo(() => {
@@ -503,7 +619,9 @@ export default function VisualisationsPage() {
 			sortColumn: sortColumn,
 			sortDirection: sortDirection,
 			aggregateValues: aggregateValues,
-			colourMode: colourMode
+			colourMode: colourMode,
+			wideSeriesMode: wideSeriesMode,
+			wideEntityColumn: wideEntityColumn
 		}
 
 		localStorage.setItem('savedChartConfig', JSON.stringify(config))
@@ -531,6 +649,8 @@ export default function VisualisationsPage() {
 		setSortDirection(parsedConfig.sortDirection || 'asc')
 		setAggregateValues(parsedConfig.aggregateValues || false)
 		setColourMode(parsedConfig.colourMode || 'column')
+		setWideSeriesMode(parsedConfig.wideSeriesMode || false)
+		setWideEntityColumn(parsedConfig.wideEntityColumn || '')
 		setSavedMessage('Chart configuration loaded.')
 	}
 
@@ -584,6 +704,118 @@ export default function VisualisationsPage() {
 			<p><strong>Dataset:</strong> {datasetName}</p>
 
 			<div style={{ marginTop: '24px' }}>
+				<h2>Filter Data</h2>
+				<p>Narrow the rows used in the chart. This does not change the saved dataset.</p>
+
+				<div style={{ marginBottom: '16px' }}>
+					<label htmlFor="visFilterColumn"><strong>Filter column: </strong></label>
+					<select
+						id="visFilterColumn"
+						value={filterColumn}
+						onChange={(e) => {
+							setFilterColumn(e.target.value)
+							setSelectedFilterValues([])
+							setFilterSearch('')
+							setFilterMin('')
+							setFilterMax('')
+							setFilterDateFrom('')
+							setFilterDateTo('')
+						}}
+					>
+						<option value="">No filter</option>
+						{columns.map((col) => (
+							<option key={col} value={col}>{col}</option>
+						))}
+					</select>
+
+					{filterColumn && (
+						<button type="button" onClick={clearFilter} style={{ marginLeft: '8px' }}>
+							Clear filter
+						</button>
+					)}
+				</div>
+
+				{filterColumn && columnTypes[filterColumn] === 'text' && isDateColumn(rows, filterColumn) && (
+					<div style={{ marginBottom: '16px' }}>
+						<label>
+							<strong>From: </strong>
+							<input
+								type="date"
+								value={filterDateFrom}
+								onChange={(e) => setFilterDateFrom(e.target.value)}
+								style={{ marginLeft: '4px' }}
+							/>
+						</label>
+						<label style={{ marginLeft: '16px' }}>
+							<strong>To: </strong>
+							<input
+								type="date"
+								value={filterDateTo}
+								onChange={(e) => setFilterDateTo(e.target.value)}
+								style={{ marginLeft: '4px' }}
+							/>
+						</label>
+						<p style={{ marginTop: '6px', fontSize: '14px' }}>{filteredRows.length} of {rows.length} rows shown</p>
+					</div>
+				)}
+
+				{filterColumn && columnTypes[filterColumn] === 'text' && !isDateColumn(rows, filterColumn) && (
+					<div style={{ marginBottom: '16px' }}>
+						<input
+							type="text"
+							value={filterSearch}
+							onChange={(e) => setFilterSearch(e.target.value)}
+							placeholder="Search values..."
+							style={{ marginBottom: '8px', display: 'block' }}
+						/>
+						<div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+							<button type="button" onClick={() => setSelectedFilterValues(filteredAvailableValues)}>Select all</button>
+							<button type="button" onClick={() => setSelectedFilterValues([])}>Clear all</button>
+						</div>
+						<div style={{ maxHeight: '200px', overflowY: 'scroll', border: '1px solid #ccc', padding: '8px' }}>
+							{filteredAvailableValues.map((value) => (
+								<label key={value} style={{ display: 'block', marginBottom: '4px' }}>
+									<input
+										type="checkbox"
+										checked={selectedFilterValues.includes(value)}
+										onChange={() => toggleFilterValue(value)}
+									/>
+									{' '}{value}
+								</label>
+							))}
+						</div>
+						<p style={{ marginTop: '6px', fontSize: '14px' }}>{selectedFilterValues.length} selected — {filteredRows.length} of {rows.length} rows shown</p>
+					</div>
+				)}
+
+				{filterColumn && columnTypes[filterColumn] === 'number' && (
+					<div style={{ marginBottom: '16px' }}>
+						<label>
+							<strong>Min: </strong>
+							<input
+								type="number"
+								value={filterMin}
+								onChange={(e) => setFilterMin(e.target.value)}
+								placeholder="No minimum"
+								style={{ marginLeft: '4px', width: '120px' }}
+							/>
+						</label>
+						<label style={{ marginLeft: '16px' }}>
+							<strong>Max: </strong>
+							<input
+								type="number"
+								value={filterMax}
+								onChange={(e) => setFilterMax(e.target.value)}
+								placeholder="No maximum"
+								style={{ marginLeft: '4px', width: '120px' }}
+							/>
+						</label>
+						<p style={{ marginTop: '6px', fontSize: '14px' }}>{filteredRows.length} of {rows.length} rows shown</p>
+					</div>
+				)}
+			</div>
+
+			<div style={{ marginTop: '24px' }}>
 				<h2>Chart Setup</h2>
 
 				<div style={{ marginBottom: '16px' }}>
@@ -599,6 +831,49 @@ export default function VisualisationsPage() {
 					</select>
 				</div>
 
+				{chartType === 'line' && yearColumns.length >= 2 && (
+					<div style={{ marginBottom: '16px' }}>
+						<label>
+							<input
+								type="checkbox"
+								checked={wideSeriesMode}
+								onChange={(e) => {
+									const checked = e.target.checked
+									setWideSeriesMode(checked)
+									if (checked && !wideEntityColumn && textColumns.length > 0) {
+										const best = textColumns.reduce((b, col) => {
+											const ua = new Set(rows.map((r) => r[col])).size
+											const ub = new Set(rows.map((r) => r[b])).size
+											return ua > ub ? col : b
+										})
+										setWideEntityColumn(best)
+									}
+								}}
+							/>
+							{' '}<strong>One line per row<Tip text="Uses the detected date columns as the x-axis and draws one line per row. Use the filter above to limit the number of rows for a readable chart." /></strong>
+						</label>
+
+						{wideSeriesMode && (
+							<div style={{ marginTop: '8px' }}>
+								<label>
+									<strong>Label each line by: </strong>
+									<select
+										value={wideEntityColumn}
+										onChange={(e) => setWideEntityColumn(e.target.value)}
+										style={{ marginLeft: '8px' }}
+									>
+										<option value="">Select a column</option>
+										{textColumns.map((col) => (
+											<option key={col} value={col}>{col}</option>
+										))}
+									</select>
+								</label>
+							</div>
+						)}
+					</div>
+				)}
+
+				{!wideSeriesMode && (<>
 				<div style={{ marginBottom: '16px' }}>
 					<label htmlFor="labelColumn"><strong>Label column<Tip text="The column used as the x-axis on bar and line charts, or as slice names on a pie chart. Works best with a column that has a unique value per row, such as a date or name." />: </strong></label>
 					<select
@@ -757,6 +1032,7 @@ export default function VisualisationsPage() {
 						style={{ marginLeft: '8px', width: '120px' }}
 					/>
 				</div>
+				</>)}
 
 				<div style={{ marginBottom: '16px' }}>
 					<button

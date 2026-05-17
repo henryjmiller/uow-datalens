@@ -83,9 +83,9 @@ export default function CleanDataPage() {
 	}, [dataset, filterColumn, columnTypes])
 
 	const filteredAvailableValues = useMemo(() => {
-		if (!filterSearch) return availableFilterValues.slice(0, 200)
+		if (!filterSearch) return availableFilterValues
 		const lower = filterSearch.toLowerCase()
-		return availableFilterValues.filter((v) => v.toLowerCase().includes(lower)).slice(0, 200)
+		return availableFilterValues.filter((v) => v.toLowerCase().includes(lower))
 	}, [availableFilterValues, filterSearch])
 
 	const matchingRowCount = useMemo(() => {

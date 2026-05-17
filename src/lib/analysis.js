@@ -183,6 +183,35 @@ export function getCorrelationAnalysis(rows, columns, detectedTypes) {
 	return results.slice(0, 10)
 }
 
+export function getWideFormatTrendAnalysis(rows, yearColumns, entityColumn) {
+	if (yearColumns.length < 2) return []
+
+	const firstYear = yearColumns[0]
+	const lastYear = yearColumns[yearColumns.length - 1]
+	const results = []
+
+	for (const row of rows) {
+		const firstValue = row[firstYear]
+		const lastValue = row[lastYear]
+		if (typeof firstValue !== 'number' || isNaN(firstValue)) continue
+		if (typeof lastValue !== 'number' || isNaN(lastValue)) continue
+
+		const absoluteChange = lastValue - firstValue
+		const percentageChange = firstValue !== 0 ? (absoluteChange / firstValue) * 100 : 0
+
+		results.push({
+			entity: entityColumn ? String(row[entityColumn] ?? '') : '',
+			firstValue,
+			lastValue,
+			absoluteChange,
+			percentageChange
+		})
+	}
+
+	results.sort((a, b) => Math.abs(b.absoluteChange) - Math.abs(a.absoluteChange))
+	return results
+}
+
 export function getTrendAnalysis(rows, columns, detectedTypes) {
 	const numericColumns = columns.filter((column) => detectedTypes[column] === 'number')
 	const results = []
@@ -215,7 +244,7 @@ export function getTrendAnalysis(rows, columns, detectedTypes) {
 
 	results.sort((a, b) => Math.abs(b.absoluteChange) - Math.abs(a.absoluteChange))
 
-	return results.slice(0, 10)
+	return results
 }
 
 function getQuartile(sortedValues, quartile) {
@@ -230,33 +259,30 @@ function getQuartile(sortedValues, quartile) {
 	return sortedValues[base]
 }
 
-export function getOutlierAnalysis(rows, columns, detectedTypes) {
+export function getOutlierAnalysis(rows, columns, detectedTypes, entityColumn = null) {
 	const numericColumns = columns.filter((column) => detectedTypes[column] === 'number')
 	const results = {}
 
 	for (const column of numericColumns) {
-		const values = getNumericValues(rows, column).sort((a, b) => a - b)
+		const entries = rows
+			.map((row) => ({ value: row[column], entity: entityColumn ? String(row[entityColumn] ?? '') : null }))
+			.filter(({ value }) => typeof value === 'number' && !isNaN(value))
+			.sort((a, b) => a.value - b.value)
 
-		if (values.length < 4) {
-			continue
-		}
+		if (entries.length < 4) continue
 
+		const values = entries.map((e) => e.value)
 		const q1 = getQuartile(values, 0.25)
 		const q3 = getQuartile(values, 0.75)
 		const iqr = q3 - q1
 		const lowerBound = q1 - 1.5 * iqr
 		const upperBound = q3 + 1.5 * iqr
 
-		const outliers = values.filter((value) => value < lowerBound || value > upperBound)
+		const outliers = entries
+			.filter(({ value }) => value < lowerBound || value > upperBound)
+			.map(({ value, entity }) => ({ value, entity }))
 
-		results[column] = {
-			q1,
-			q3,
-			iqr,
-			lowerBound,
-			upperBound,
-			outliers
-		}
+		results[column] = { q1, q3, iqr, lowerBound, upperBound, outliers }
 	}
 
 	return results

@@ -146,14 +146,25 @@ export default function PredictiveModellingPage() {
 		const xMax = data[data.length - 1][0]
 		const xRange = xMax - xMin || 1
 
-		const normalised = data.map(([x, y]) => [(x - xMin) / xRange, y])
-		const result = regression.polynomial(normalised, { order: polynomialOrder, precision: 10 })
-
 		const yValues = data.map((d) => d[1])
+		const yMin = Math.min(...yValues)
+		const yMax = Math.max(...yValues)
+		const yRange = yMax - yMin || 1
+
+		const normalised = data.map(([x, y]) => [(x - xMin) / xRange, (y - yMin) / yRange])
+
+		let result
+		try {
+			result = regression.polynomial(normalised, { order: polynomialOrder, precision: 10 })
+		} catch {
+			return null
+		}
+		if (!result || isNaN(result.r2)) return null
+
 		return {
 			r2: result.r2,
 			equationString: result.string,
-			predict: (x) => result.predict((x - xMin) / xRange)[1],
+			predict: (x) => result.predict((x - xMin) / xRange)[1] * yRange + yMin,
 			pointCount: data.length,
 			decimalPlaces: inferDecimalPlaces(yValues),
 			x: data.map((d) => d[0]),
@@ -243,14 +254,25 @@ export default function PredictiveModellingPage() {
 		const xMax = data[data.length - 1][0]
 		const xRange = xMax - xMin || 1
 
-		const normalised = data.map(([x, y]) => [(x - xMin) / xRange, y])
-		const result = regression.polynomial(normalised, { order: polynomialOrder, precision: 10 })
-
 		const yValues = data.map((d) => d[1])
+		const yMin = Math.min(...yValues)
+		const yMax = Math.max(...yValues)
+		const yRange = yMax - yMin || 1
+
+		const normalised = data.map(([x, y]) => [(x - xMin) / xRange, (y - yMin) / yRange])
+
+		let result
+		try {
+			result = regression.polynomial(normalised, { order: polynomialOrder, precision: 10 })
+		} catch {
+			return null
+		}
+		if (!result || isNaN(result.r2)) return null
+
 		return {
 			r2: result.r2,
 			equationString: result.string,
-			predict: (x) => result.predict((x - xMin) / xRange)[1],
+			predict: (x) => result.predict((x - xMin) / xRange)[1] * yRange + yMin,
 			pointCount: data.length,
 			decimalPlaces: inferDecimalPlaces(yValues),
 			x: data.map((d) => d[0]),

@@ -4,6 +4,16 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { detectColumnTypes, getOutlierAnalysis } from '@/lib/analysis'
 
+function detectEntityColumn(rows, columns, types) {
+	const textColumns = columns.filter((col) => types[col] === 'text')
+	if (textColumns.length === 0) return null
+	return textColumns.reduce((best, col) => {
+		const ua = new Set(rows.map((r) => r[col])).size
+		const ub = new Set(rows.map((r) => r[best])).size
+		return ua > ub ? col : best
+	})
+}
+
 export default function OutliersPage() {
 	const [results, setResults] = useState({})
 	const [datasetName, setDatasetName] = useState('')
@@ -13,21 +23,15 @@ export default function OutliersPage() {
 	useEffect(() => {
 		async function load() {
 			const activeId = localStorage.getItem('activeDatasetId')
-			if (!activeId) {
-				setLoading(false)
-				return
-			}
+			if (!activeId) { setLoading(false); return }
 
 			const res = await fetch(`/api/datasets/${activeId}`).catch(() => null)
-
-			if (!res || !res.ok) {
-				setLoading(false)
-				return
-			}
+			if (!res || !res.ok) { setLoading(false); return }
 
 			const dataset = await res.json()
 			const types = detectColumnTypes(dataset.rows, dataset.columns)
-			setResults(getOutlierAnalysis(dataset.rows, dataset.columns, types))
+			const entityColumn = detectEntityColumn(dataset.rows, dataset.columns, types)
+			setResults(getOutlierAnalysis(dataset.rows, dataset.columns, types, entityColumn))
 			setDatasetName(dataset.name || 'Unnamed dataset')
 			setLoaded(true)
 			setLoading(false)
@@ -36,13 +40,11 @@ export default function OutliersPage() {
 		load()
 	}, [])
 
-	if (loading) {
-		return <main ><h1>Outlier Detection</h1><p>Loading...</p></main>
-	}
+	if (loading) return <main><h1>Outlier Detection</h1><p>Loading...</p></main>
 
 	if (!loaded) {
 		return (
-			<main >
+			<main>
 				<h1>Outlier Detection</h1>
 				<p>No dataset found. Please upload a CSV on the datasets page first.</p>
 			</main>
@@ -50,7 +52,7 @@ export default function OutliersPage() {
 	}
 
 	return (
-		<main >
+		<main>
 			<h1>Outlier Detection</h1>
 			<p><strong>Dataset:</strong> {datasetName}</p>
 			<p><Link href="/analysis">Back to Analysis</Link></p>
@@ -69,10 +71,13 @@ export default function OutliersPage() {
 
 						{result.outliers.length > 0 && (
 							<div>
-								<p><strong>Example outliers:</strong></p>
+								<p><strong>Outliers:</strong></p>
 								<ul>
-									{result.outliers.slice(0, 10).map((value, index) => (
-										<li key={index}>{value}</li>
+									{result.outliers.map(({ value, entity }, index) => (
+										<li key={index}>
+											{entity ? <><strong>{entity}:</strong> </> : null}
+											{value.toLocaleString()}
+										</li>
 									))}
 								</ul>
 							</div>
